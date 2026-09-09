@@ -1,9 +1,9 @@
-# Blender · Claude Code · Generative video
+# Blender · Codex · Generative video
 
 A short visual logbook about an experiment: directing generative video from an
 editable 3D scene instead of accepting a generator's camera, composition and action.
 
-**Live presentation:** https://mabz-miguel.github.io/blender-claude-code-experiment/
+**Live presentation:** https://mabz-miguel.github.io/blender-codex-experiment/
 
 Desktop only, 16:9. Open `index.html` in a desktop browser and go full screen.
 Navigate with the arrow keys, space, or the ‹ › buttons.

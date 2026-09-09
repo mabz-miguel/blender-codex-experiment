@@ -1,10 +1,10 @@
-# Presentación — Experimento Blender · Claude Code · Vídeo generativo
+# Presentación — Experimento Blender · Codex · Vídeo generativo
 
 ## Qué es
 
 Presentación visual en HTML (una sola página, `index.html`) que explica **por qué** se hizo el
 experimento de dirigir vídeo generativo desde una escena 3D editable: partir de una referencia
-fotográfica, reconstruir el salón en Blender con Claude Code vía MCP, hacer blocking con un dummy,
+fotográfica, reconstruir el salón en Blender con Codex vía MCP, hacer blocking con un dummy,
 grabar cámara a mano con VirtuCamera, y usar el render como base para sustitución visual con IA
 (Magnific), moviendo ahora el flujo a ComfyUI para iterar en local.
 
@@ -63,7 +63,7 @@ flujo". El encargo prohíbe afirmar que el resultado es perfecto o apto para pro
 ## Arquitectura
 
 - `index.html` — todo: HTML + CSS + JS inline. Sin build, sin dependencias locales.
-- `blender-claude-code-experiment-presentation.pdf` — export apaisado de las 8 pantallas
+- `blender-codex-experiment-presentation.pdf` — export apaisado de las 8 pantallas
   (1 por página, 2400×1350). Los vídeos salen como fotograma fijo. Se regenera con Playwright:
   servir la carpeta, recorrer `window.__go(0..7)`, capturar JPEG de cada pantalla y `page.pdf()`.
 - `assets/video/` — 7 mp4 (verticales 720×1080 / 720×1280), copiados de `~/Desktop/test`.
@@ -91,11 +91,11 @@ se pueden regenerar desde ahí: copiar los mp4, recrear pósters con
 
 ## Publicación
 
-- Repo **público** en GitHub: `mabz-miguel/blender-claude-code-experiment` (remote `origin`).
+- Repo **público** en GitHub: `mabz-miguel/blender-codex-experiment` (remote `origin`).
 - **GitHub Pages** activo desde `main` / raíz →
-  **https://mabz-miguel.github.io/blender-claude-code-experiment/**
+  **https://mabz-miguel.github.io/blender-codex-experiment/**
   (vídeos servidos desde Pages, funcionan). Cada `git push` a `main` redespliega solo.
-- El PDF (`blender-claude-code-experiment-presentation.pdf`) va versionado en el repo.
+- El PDF (`blender-codex-experiment-presentation.pdf`) va versionado en el repo.
 
 ## Pendiente / posibles mejoras
 
