@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blender · Claude Code · Generative video</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23131210'/><circle cx='8' cy='8' r='3' fill='%23E3BE86'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Archivo+Expanded:wght@600;700&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#131210;
+    --panel:#1b1a16;
+    --ink:#ECE7DC;
+    --ink-dim:#948D7D;
+    --ink-faint:#5f5a4e;
+    --sand:#E3BE86;
+    --sand-deep:#C29A5E;
+    --line:#332F27;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:#0d0c0a;
+    color:var(--ink);
+    font-family:"Archivo","Helvetica Neue",Arial,sans-serif;
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .deck{
+    width:100vw;height:100vh;
+    display:flex;align-items:center;justify-content:center;
+  }
+
+  /* Fixed 16:9 stage, letterboxed. Everything inside scales with container query units. */
+  .stage{
+    width:min(100vw, 177.78vh);
+    height:min(56.25vw, 100vh);
+    container-type:size;
+    position:relative;overflow:hidden;
+    display:flex;flex-direction:column;
+    padding:4.2cqh 5cqw 3cqh;
+    background:
+      radial-gradient(135% 100% at 50% -10%, #1a1813 0%, #100f0c 70%),
+      var(--bg);
+  }
+
+  /* ---------- running header ---------- */
+  .head{
+    flex:0 0 auto;
+    display:flex;justify-content:space-between;align-items:baseline;
+    padding-bottom:1.5cqh;border-bottom:1px solid var(--line);
+  }
+  .head span{font-family:"Spline Sans Mono",monospace;font-size:1.3cqh;letter-spacing:.03em;color:var(--ink-dim)}
+  .head .idx b{color:var(--sand);font-weight:500}
+
+  /* ---------- body / screens ---------- */
+  .body{position:relative;flex:1 1 auto;margin-top:2.6cqh;overflow:hidden}
+
+  .screen{
+    position:absolute;inset:0;overflow:hidden;
+    display:flex;flex-direction:column;
+    opacity:0;visibility:hidden;transition:opacity .4s ease;
+  }
+  .screen.active{opacity:1;visibility:visible}
+
+  h1,h2{
+    font-family:"Archivo Expanded","Archivo",sans-serif;
+    font-weight:700;line-height:1.05;letter-spacing:-.005em;color:var(--ink);
+  }
+  h1{font-size:4.6cqh;max-width:17ch}
+  h2{font-size:3cqh;font-weight:600;flex:0 0 auto}
+
+  .eyebrow{
+    font-family:"Spline Sans Mono",monospace;font-size:1.3cqh;
+    letter-spacing:.03em;color:var(--ink-dim);margin-bottom:2.2cqh;
+  }
+
+  p.lead{font-size:2.15cqh;line-height:1.5;color:var(--ink-dim);max-width:46ch}
+  p.lead strong{color:var(--ink);font-weight:500}
+
+  .statement{
+    font-family:"Archivo Expanded","Archivo",sans-serif;
+    font-weight:600;font-size:3.2cqh;line-height:1.16;color:var(--ink);
+    max-width:24ch;padding-top:1.8cqh;position:relative;
+  }
+  .statement::before{content:"";position:absolute;top:0;left:0;width:3.2cqw;height:2px;background:var(--sand)}
+
+  figcaption{
+    font-family:"Spline Sans Mono",monospace;font-size:1.2cqh;line-height:1.5;
+    letter-spacing:.02em;color:var(--ink-dim);margin-top:.9cqh;flex:0 0 auto;
+  }
+  figcaption span{display:block;color:var(--ink-faint)}
+
+  .frame{position:relative;overflow:hidden;border:1px solid var(--line);background:var(--panel)}
+  .frame video,.frame img{display:block;width:100%;height:100%;object-fit:cover}
+
+  /* portrait media unit */
+  .pv{display:flex;flex-direction:column;align-items:center;min-height:0;min-width:0;flex:0 1 auto}
+  .pv .frame{flex:1 1 auto;min-height:0;aspect-ratio:2/3;width:auto;max-width:100%}
+  .pv.tall .frame{aspect-ratio:9/16}
+  .pv figcaption{align-self:stretch}
+
+  /* ---------- S1 · goal ---------- */
+  .s1{display:grid;grid-template-columns:1fr 1.04fr;grid-template-rows:minmax(0,1fr);gap:4.5cqw}
+  .s1 .txt{display:flex;flex-direction:column;justify-content:space-between;min-height:0}
+  .s1 .media{display:grid;grid-template-rows:minmax(0,1fr) auto;gap:1.4cqh;min-height:0}
+  .s1 .pair{display:flex;gap:1.6cqw;justify-content:center;min-height:0}
+  .s1 .pair .pv .frame{max-width:none}
+  .s1 .strip{flex:0 0 auto;display:flex;flex-direction:column}
+  .s1 .strip .frame{height:9cqh}
+  .s1 .strip img{object-fit:cover;object-position:center 18%}
+
+  /* ---------- S2 · pipeline ---------- */
+  .s2{display:flex;flex-direction:column}
+  .s2 .track-wrap{flex:1 1 auto;display:flex;align-items:center;min-height:0}
+  .s2 .track{display:flex;position:relative;width:100%;padding-top:2cqh}
+  .s2 .track::before{content:"";position:absolute;left:.5cqw;right:2.8cqw;top:2.5cqh;height:1px;background:var(--sand-deep);opacity:.5}
+  .s2 .track::after{
+    content:"";position:absolute;right:1.5cqw;top:2.5cqh;transform:translateY(-50%);
+    width:0;height:0;border-top:.6cqh solid transparent;border-bottom:.6cqh solid transparent;border-left:1cqh solid var(--sand-deep);
+  }
+  .s2 .node{flex:1 1 0;padding-right:1.9cqw;position:relative;display:flex;flex-direction:column;gap:1.1cqh;padding-top:3cqh}
+  .s2 .node .dot{width:1cqh;height:1cqh;border-radius:50%;background:var(--sand);position:absolute;top:2cqh;left:0;box-shadow:0 0 0 3px var(--bg)}
+  .s2 .node .thumb{width:100%;aspect-ratio:3/4;border:1px solid var(--line);overflow:hidden;background:var(--panel)}
+  .s2 .node .thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .s2 .node .thumb.pending{display:flex;align-items:center;justify-content:center;border-style:dashed}
+  .s2 .node .thumb.pending span{font-family:"Spline Sans Mono",monospace;font-size:1.2cqh;color:var(--sand);letter-spacing:.03em}
+  .s2 .node .name{font-family:"Archivo Expanded","Archivo",sans-serif;font-weight:600;font-size:1.55cqh;line-height:1.18;color:var(--ink);margin-top:.6cqh;min-height:2.4em}
+  .s2 .node .note{font-size:1.4cqh;line-height:1.4;color:var(--ink-dim)}
+  .s2 .node:has(.thumb.pending) .note{color:var(--sand)}
+
+  /* ---------- SR · automatic reconstruction ---------- */
+  .sr{display:flex;flex-direction:column}
+  .sr .compare{flex:1 1 auto;display:flex;gap:2cqw;justify-content:center;align-items:stretch;min-height:0;margin:2cqh 0}
+  .sr .compare figure{display:flex;flex-direction:column;min-height:0;flex:0 0 auto}
+  .sr .compare .frame{flex:1 1 auto;width:41cqw;min-height:0}
+  .sr .compare .frame img{object-position:center 62%}
+  .sr .arrow{align-self:center;color:var(--sand-deep);font-size:2.4cqh;flex:0 0 auto}
+  .sr .sr-foot{flex:0 0 auto;display:grid;grid-template-columns:23cqw 1fr;gap:3cqw;align-items:center}
+  .sr .sr-foot .mcp{display:flex;flex-direction:column}
+  .sr .sr-foot .mcp .frame{aspect-ratio:16/10}
+  .sr .sr-foot .mcp img{object-position:center top}
+  .sr .sr-foot p.lead{max-width:58ch;font-size:1.8cqh}
+
+  /* ---------- S3 · blender ---------- */
+  .s3{display:flex;flex-direction:column}
+  .s3 .row{flex:1 1 auto;display:flex;gap:2.2cqw;justify-content:center;align-items:stretch;min-height:0;margin:1.8cqh 0}
+  .s3 .foot{flex:0 0 auto;display:grid;grid-template-columns:1.1fr 1fr;gap:4cqw;align-items:start}
+  .s3 .foot .lead{font-size:1.95cqh}
+  .s3 .foot .sub{font-size:1.55cqh;line-height:1.45;color:var(--ink-faint)}
+
+  /* ---------- S4 · camera ---------- */
+  .s4{display:grid;grid-template-columns:.82fr 1.18fr;grid-template-rows:minmax(0,1fr);gap:4.5cqw}
+  .s4 .txt{display:flex;flex-direction:column;min-height:0}
+  .s4 .txt p.lead{margin-top:2.2cqh}
+  .s4 .steps{margin-top:auto;display:flex;flex-direction:column;gap:1.4cqh;padding-left:1.6cqw;border-left:2px solid var(--sand);list-style:none}
+  .s4 .steps li{font-size:1.75cqh;line-height:1.35;color:var(--ink)}
+  .s4 .vids{display:flex;gap:2cqw;justify-content:center;align-items:stretch;min-height:0}
+
+  /* ---------- S5 · outcome ---------- */
+  .s5{display:flex;flex-direction:column}
+  .s5 .grid{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr .62fr;grid-template-rows:minmax(0,1fr);column-gap:4cqw;margin-top:2.4cqh;min-height:0}
+  .s5 .col{display:flex;flex-direction:column;gap:1.7cqh;align-self:start}
+  .s5 .col.lim{padding-left:2cqw}
+  .s5 .col h3{font-family:"Spline Sans Mono",monospace;font-weight:500;font-size:1.35cqh;letter-spacing:.04em;color:var(--ink-dim)}
+  .s5 .col ul{display:flex;flex-direction:column;gap:1.5cqh;list-style:none}
+  .s5 .col li{font-size:1.8cqh;line-height:1.34;color:var(--ink);padding-left:2.6cqw;position:relative}
+  .s5 .col li::before{position:absolute;left:0;top:0;color:var(--sand);font-family:"Spline Sans Mono",monospace}
+  .s5 .win li::before{content:"+"}
+  .s5 .lim li::before{content:"–"}
+  .s5 .shot{align-self:stretch;border-left:1px solid var(--line);padding-left:3.4cqw;align-items:stretch}
+  .s5 .shot .frame{flex:1 1 auto;aspect-ratio:9/16;min-height:0}
+
+  /* ---------- S6 · status ---------- */
+  .s6{display:flex;flex-direction:column}
+  .s6 .top{flex:1 1 auto;display:grid;grid-template-columns:1.5fr 1fr;grid-template-rows:minmax(0,1fr);gap:4cqw;min-height:0;margin:2.2cqh 0}
+  .s6 .media{display:flex;gap:1.5cqw;align-items:stretch;min-height:0}
+  .s6 .txt{display:flex;flex-direction:column;gap:2.2cqh;min-height:0}
+  .s6 .txt p.lead{font-size:1.85cqh;max-width:36ch}
+  .s6 .next{display:flex;flex-direction:column;gap:1.7cqh}
+  .s6 .step{font-size:1.75cqh;line-height:1.4;color:var(--ink);border-left:2px solid var(--sand);padding-left:1.7cqw;max-width:40ch}
+  .s6 .step b{display:block;font-family:"Spline Sans Mono",monospace;font-weight:500;font-size:1.3cqh;letter-spacing:.05em;color:var(--sand);margin-bottom:.5cqh}
+  .s6 .closing{
+    flex:0 0 auto;font-family:"Archivo Expanded","Archivo",sans-serif;font-weight:600;
+    font-size:2.7cqh;line-height:1.2;color:var(--sand);max-width:44ch;
+    padding-top:2.2cqh;border-top:1px solid var(--line);
+  }
+
+  /* ---------- SC · credits ---------- */
+  .sc{display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
+  .sc .credits{display:flex;flex-direction:column;gap:3.4cqh}
+  .sc .names{list-style:none;display:flex;flex-direction:column;gap:1.6cqh}
+  .sc .names li{font-family:"Archivo Expanded","Archivo",sans-serif;font-weight:700;font-size:4cqh;line-height:1.08;color:var(--ink)}
+  .sc .ctx{font-size:1.9cqh;line-height:1.5;color:var(--ink-dim);padding-top:1.6cqh;position:relative;max-width:44ch}
+  .sc .ctx::before{content:"";position:absolute;top:0;left:0;width:3.2cqw;height:2px;background:var(--sand)}
+
+  /* ---------- footer / nav ---------- */
+  .foot{flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;padding-top:1.4cqh;border-top:1px solid var(--line)}
+  .foot .note{font-family:"Spline Sans Mono",monospace;font-size:1.1cqh;letter-spacing:.02em;color:var(--ink-faint)}
+  .ticks{display:flex;gap:1cqw}
+  .ticks button{width:2.6cqw;height:2px;border:0;padding:0;cursor:pointer;background:var(--line);transition:background .3s ease}
+  .ticks button.on{background:var(--sand)}
+  .nav{display:flex;gap:.8cqw}
+  .nav button{
+    width:3.3cqh;height:3.3cqh;border:1px solid var(--line);background:transparent;color:var(--ink-dim);
+    cursor:pointer;font-size:1.7cqh;line-height:1;display:flex;align-items:center;justify-content:center;
+    transition:border-color .2s ease,color .2s ease;
+  }
+  .nav button:hover{border-color:var(--sand);color:var(--sand)}
+  .nav button:focus-visible,.ticks button:focus-visible{outline:2px solid var(--sand);outline-offset:2px}
+
+  @media (prefers-reduced-motion:reduce){
+    .screen,.ticks button,.nav button{transition:none}
+  }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+  <div class="stage">
+
+    <header class="head">
+      <span class="mark">Experiment logbook — Blender · Claude Code · generative video</span>
+      <span class="idx"><b id="idxNum">01</b> / <span id="idxTot">07</span> &nbsp;·&nbsp; <span id="idxName">The goal</span></span>
+    </header>
+
+    <div class="body">
+
+      <!-- 1 · THE GOAL -->
+      <section class="screen s1 active" data-name="The goal">
+        <div class="txt">
+          <div>
+            <div class="eyebrow">Why we ran this</div>
+            <h1>Directing generative video from a 3D scene</h1>
+          </div>
+          <p class="statement">Not to replace the cinematographer. To give them an editable tool.</p>
+        </div>
+        <div class="media">
+          <div class="pair">
+            <figure class="pv">
+              <div class="frame"><img src="assets/img/environment.jpg" alt="Reference photo of the real living room"></div>
+              <figcaption>Reference · real living room<span>environment.jpg</span></figcaption>
+            </figure>
+            <figure class="pv tall">
+              <div class="frame">
+                <video data-src="assets/video/magnific_transform-vid1-into-one-h_1lPTYjJr4r.mp4"
+                       poster="assets/poster/magnific_transform-vid1-into-one-h_1lPTYjJr4r.jpg"
+                       muted loop playsinline preload="none"></video>
+              </div>
+              <figcaption>Magnific · visual replacement<span>final result of the experiment</span></figcaption>
+            </figure>
+          </div>
+          <figure class="strip">
+            <div class="frame"><img src="assets/img/character_reference.png" alt="Character reference sheet: woman around 40"></div>
+            <figcaption>Character reference<span>character_reference_woman_40.png</span></figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- 2 · THE PIPELINE -->
+      <section class="screen s2" data-name="The pipeline">
+        <h2>The pipeline</h2>
+        <div class="track-wrap">
+          <div class="track">
+            <div class="node">
+              <span class="dot"></span>
+              <div class="thumb"><img src="assets/img/environment.jpg" alt="Reference photo of the living room"></div>
+              <div class="name">Photographic reference</div>
+              <div class="note">Spatial and aesthetic intent.</div>
+            </div>
+            <div class="node">
+              <span class="dot"></span>
+              <div class="thumb"><img src="assets/img/blender_mcp_viewport.jpg" alt="Living room rebuilt in Blender with the MCP panel connected"></div>
+              <div class="name">3D reconstruction in Blender</div>
+              <div class="note">Editable scene built and reviewed in natural language, via Claude Code.</div>
+            </div>
+            <div class="node">
+              <span class="dot"></span>
+              <div class="thumb"><img src="assets/poster/Test_manual_1.jpg" alt="Dummy blocked out inside the scene"></div>
+              <div class="name">Dummy and action blocking</div>
+              <div class="note">Positions, contacts and path.</div>
+            </div>
+            <div class="node">
+              <span class="dot"></span>
+              <div class="thumb"><img src="assets/poster/Coffee_Advert_Camera.jpg" alt="Camera framing inside the scene"></div>
+              <div class="name">Handheld or designed camera</div>
+              <div class="note">A phone-shot take, or a camera built into the scene.</div>
+            </div>
+            <div class="node">
+              <span class="dot"></span>
+              <div class="thumb"><img src="assets/poster/Cafe_media_tarde_blocking.jpg" alt="Reference render of the blocking"></div>
+              <div class="name">Reference render</div>
+              <div class="note">The base image handed to the AI.</div>
+            </div>
+            <div class="node">
+              <span class="dot"></span>
+              <div class="thumb"><img src="assets/poster/magnific_transform-vid1-into-one-h_1lPTYjJr4r.jpg" alt="Frame from the Magnific result"></div>
+              <div class="name">Visual replacement with AI</div>
+              <div class="note">Identity, materials and realistic finish.</div>
+            </div>
+            <div class="node">
+              <span class="dot"></span>
+              <div class="thumb pending"><span>in progress</span></div>
+              <div class="name">Local iteration in ComfyUI</div>
+              <div class="note">Local control for new tests.</div>
+            </div>
+            <div class="node">
+              <span class="dot"></span>
+              <div class="thumb pending"><span>next</span></div>
+              <div class="name">Scene in Unreal Engine</div>
+              <div class="note">Real-time render; camera, light and path in-engine.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3 · AUTOMATIC RECONSTRUCTION -->
+      <section class="screen sr" data-name="Reference and 3D reconstruction">
+        <h2>The same scene: reference photo and rebuilt 3D</h2>
+        <div class="compare">
+          <figure>
+            <div class="frame"><img src="assets/img/environment.jpg" alt="Reference photo of the real living room"></div>
+            <figcaption>Photographic reference<span>environment.jpg</span></figcaption>
+          </figure>
+          <span class="arrow">&#8594;</span>
+          <figure>
+            <div class="frame"><img src="assets/img/blender_render.jpg" alt="Render of the living room automatically rebuilt in Blender"></div>
+            <figcaption>3D reconstruction in Blender<span>automatic render of the scene</span></figcaption>
+          </figure>
+        </div>
+        <div class="sr-foot">
+          <figure class="mcp">
+            <div class="frame"><img src="assets/img/blender_mcp_viewport.jpg" alt="Blender with the MCP panel connected on port 9876"></div>
+            <figcaption>Blender + MCP · port 9876</figcaption>
+          </figure>
+          <p class="lead">From the photo, <strong>Claude Code rebuilt the living room in Blender over an MCP connection</strong>: geometry, scale, materials, camera and light, in natural language. The scene stays editable and gets fixed without leaving the workflow.</p>
+        </div>
+      </section>
+
+      <!-- 4 · BLENDER AS A CONTROL SPACE -->
+      <section class="screen s3" data-name="Blender as a control space">
+        <h2>Blender as a control space</h2>
+        <div class="row">
+          <figure class="pv">
+            <div class="frame"><video data-src="assets/video/Cafe_media_tarde_blocking.mp4" poster="assets/poster/Cafe_media_tarde_blocking.jpg" muted loop playsinline preload="none"></video></div>
+            <figcaption>Blocking · mid-afternoon coffee<span>cafe_media_tarde_blocking.mp4</span></figcaption>
+          </figure>
+          <figure class="pv">
+            <div class="frame"><video data-src="assets/video/Test_manual_entorno_completo.mp4" poster="assets/poster/Test_manual_entorno_completo.jpg" muted loop playsinline preload="none"></video></div>
+            <figcaption>Environment on its own<span>test_manual_entorno_completo.mp4</span></figcaption>
+          </figure>
+          <figure class="pv">
+            <div class="frame"><video data-src="assets/video/Test_manual_dummy_brazo_suave.mp4" poster="assets/poster/Test_manual_dummy_brazo_suave.jpg" muted loop playsinline preload="none"></video></div>
+            <figcaption>Simplified dummy<span>test_manual_dummy_brazo_suave.mp4</span></figcaption>
+          </figure>
+        </div>
+        <div class="foot">
+          <p class="lead"><strong>Blender keeps what a video generator usually can't offer:</strong> editable geometry, scale, paths, positions, light and camera.</p>
+          <p class="sub">Claude Code automated building the living room, the materials, the dummy, the cameras, the renders and the fixes.</p>
+        </div>
+      </section>
+
+      <!-- 5 · CAMERA AS A HUMAN GESTURE -->
+      <section class="screen s4" data-name="Camera as a human gesture">
+        <div class="txt">
+          <h2>Camera as a human gesture</h2>
+          <p class="lead">VirtuCamera turned the phone into a virtual camera. The take could be recorded by hand inside the scene, like a camera operated by a person.</p>
+          <ul class="steps">
+            <li>The phone defines the camera gesture.</li>
+            <li>Blender keeps the path and lets you repeat it.</li>
+            <li>The camera doesn't have to be generated from scratch in Magnific.</li>
+          </ul>
+        </div>
+        <div class="vids">
+          <figure class="pv">
+            <div class="frame"><video data-src="assets/video/Test_manual_1.mp4" poster="assets/poster/Test_manual_1.jpg" muted loop playsinline preload="none"></video></div>
+            <figcaption>Handheld take · VirtuCamera<span>test_manual_1.mp4</span></figcaption>
+          </figure>
+          <figure class="pv">
+            <div class="frame"><video data-src="assets/video/Coffee_Advert_Camera.mp4" poster="assets/poster/Coffee_Advert_Camera.jpg" muted loop playsinline preload="none"></video></div>
+            <figcaption>Camera designed in the scene<span>coffee_advert_camera.mp4</span></figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- 6 · WHAT WORKED AND WHAT HELD IT BACK -->
+      <section class="screen s5" data-name="What worked and what held the result back">
+        <h2>What worked and what held the result back</h2>
+        <div class="grid">
+          <div class="col win">
+            <h3>Worked</h3>
+            <ul>
+              <li>Fast reconstruction of an editable scene.</li>
+              <li>Control over camera and composition.</li>
+              <li>Character and environment references with a consistent look.</li>
+              <li>Iteration between 3D and video generation.</li>
+            </ul>
+          </div>
+          <div class="col lim">
+            <h3>Held back</h3>
+            <ul>
+              <li>The generated video inherited some of the dummy's stiffness.</li>
+              <li>Prompts don't fix an unnatural body performance.</li>
+              <li>Hands, contacts and weight shifts are still fragile.</li>
+              <li>Visual replacement doesn't stand in for a convincing motion base.</li>
+            </ul>
+          </div>
+          <figure class="pv shot">
+            <div class="frame"><video data-src="assets/video/magnific_transform-vid1-into-one-h_1lPTYjJr4r.mp4" poster="assets/poster/magnific_transform-vid1-into-one-h_1lPTYjJr4r.jpg" muted loop playsinline preload="none"></video></div>
+            <figcaption>Magnific · final result<span>magnific_transform…1lPTYjJr4r.mp4</span></figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- 7 · CURRENT STATE AND NEXT ITERATION -->
+      <section class="screen s6" data-name="Current state and next iteration">
+        <h2>From the Magnific render to local control</h2>
+        <div class="top">
+          <div class="media">
+            <figure class="pv tall">
+              <div class="frame"><video data-src="assets/video/magnific_use-vid1-as-the-source-vi_VXaafliMMU.mp4" poster="assets/poster/magnific_use-vid1-as-the-source-vi_VXaafliMMU.jpg" muted loop playsinline preload="none"></video></div>
+              <figcaption>First test · Magnific<span>magnific_use-vid1-as-the-source…VXaafliMMU.mp4</span></figcaption>
+            </figure>
+            <figure class="pv tall">
+              <div class="frame"><video data-src="assets/video/magnific_transform-vid1-into-one-h_1lPTYjJr4r.mp4" poster="assets/poster/magnific_transform-vid1-into-one-h_1lPTYjJr4r.jpg" muted loop playsinline preload="none"></video></div>
+              <figcaption>Final render · Magnific<span>magnific_transform…1lPTYjJr4r.mp4</span></figcaption>
+            </figure>
+            <figure class="pv">
+              <div class="frame"><img src="assets/poster/living-room-character-animation-arm-corrected.jpg" alt="Frame of the blocking in Blender: rebuilt living room with the dummy seated"></div>
+              <figcaption>Blocking in Blender<span>source scene</span></figcaption>
+            </figure>
+          </div>
+          <div class="txt">
+            <p class="lead">We already have a final render in Magnific. It confirms the pipeline can carry character and environment into a realistic image.</p>
+            <div class="next">
+              <p class="step"><b>Now</b> ComfyUI: iterate locally, more control over each test and less dependence on credits.</p>
+              <p class="step"><b>Next</b> Take the 3D scene into Unreal Engine: real-time render, with camera, light and path inside the engine.</p>
+            </div>
+          </div>
+        </div>
+        <p class="closing">3D works as a shared language between directing, camera, animation and video generation.</p>
+      </section>
+
+      <!-- 8 · CREDITS -->
+      <section class="screen sc" data-name="Credits">
+        <div class="credits">
+          <div class="eyebrow">Credits</div>
+          <ul class="names">
+            <li>Miguel Ángel Ballesteros</li>
+            <li>Alba Díaz</li>
+            <li>Teyo Cuadrado</li>
+          </ul>
+          <p class="ctx">An experiment with Blender, Claude Code and generative video.</p>
+        </div>
+      </section>
+
+    </div>
+
+    <footer class="foot">
+      <span class="note">Experimental material · current possibilities and limits of the workflow</span>
+      <div class="ticks" id="ticks" role="tablist" aria-label="Go to screen"></div>
+      <div class="nav">
+        <button id="prev" type="button" aria-label="Previous screen">&#8249;</button>
+        <button id="next" type="button" aria-label="Next screen">&#8250;</button>
+      </div>
+    </footer>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  var screens = Array.prototype.slice.call(document.querySelectorAll('.screen'));
+  var idxNum = document.getElementById('idxNum');
+  var idxName = document.getElementById('idxName');
+  var ticksWrap = document.getElementById('ticks');
+  var cur = 0;
+
+  screens.forEach(function(s, i){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role','tab');
+    b.setAttribute('aria-label', 'Screen ' + (i+1) + ': ' + s.dataset.name);
+    b.addEventListener('click', function(){ go(i); b.blur(); });
+    ticksWrap.appendChild(b);
+  });
+  var ticks = Array.prototype.slice.call(ticksWrap.children);
+  document.getElementById('idxTot').textContent = String(screens.length).padStart(2, '0');
+
+  function go(n){
+    n = Math.max(0, Math.min(screens.length - 1, n));
+    cur = n;
+    screens.forEach(function(s, i){
+      var on = i === n;
+      s.classList.toggle('active', on);
+      s.querySelectorAll('video').forEach(function(v){
+        if(on){
+          if(!v.src && v.dataset.src) v.src = v.dataset.src;
+          var p = v.play(); if(p && p.catch) p.catch(function(){});
+        } else {
+          v.pause();
+        }
+      });
+    });
+    ticks.forEach(function(t, i){ t.classList.toggle('on', i <= n); });
+    idxNum.textContent = String(n + 1).padStart(2, '0');
+    idxName.textContent = screens[n].dataset.name;
+  }
+
+  document.getElementById('next').addEventListener('click', function(){ go(cur + 1); this.blur(); });
+  document.getElementById('prev').addEventListener('click', function(){ go(cur - 1); this.blur(); });
+
+  window.addEventListener('keydown', function(e){
+    if(e.defaultPrevented || e.repeat) return;
+    if((e.target.tagName === 'BUTTON') && (e.key === ' ' || e.key === 'Enter' || e.key === 'Spacebar')) return;
+    switch(e.key){
+      case 'ArrowRight': case 'ArrowDown': case 'PageDown': case ' ': case 'Spacebar':
+        e.preventDefault(); go(cur + 1); break;
+      case 'ArrowLeft': case 'ArrowUp': case 'PageUp':
+        e.preventDefault(); go(cur - 1); break;
+      case 'Home': e.preventDefault(); go(0); break;
+      case 'End': e.preventDefault(); go(screens.length - 1); break;
+      case 'f': case 'F':
+        if(!document.fullscreenElement){ if(deck.requestFullscreen) deck.requestFullscreen(); }
+        else if(document.exitFullscreen){ document.exitFullscreen(); }
+        break;
+    }
+  });
+
+  window.__go = go;
+  go(0);
+})();
+</script>
+</body>
+</html>
