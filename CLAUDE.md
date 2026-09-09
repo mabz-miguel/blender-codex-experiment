@@ -89,6 +89,14 @@ Los materiales originales están en `~/Desktop/test/` (no versionado). Si se pie
 se pueden regenerar desde ahí: copiar los mp4, recrear pósters con
 `qlmanage -t -s 1400 -o <destino> <video.mp4>`, y `sips` para convertir/reescalar imágenes.
 
+## Publicación
+
+- Repo **público** en GitHub: `mabz-miguel/blender-claude-code-experiment` (remote `origin`).
+- **GitHub Pages** activo desde `main` / raíz →
+  **https://mabz-miguel.github.io/blender-claude-code-experiment/**
+  (vídeos servidos desde Pages, funcionan). Cada `git push` a `main` redespliega solo.
+- El PDF (`blender-claude-code-experiment-presentation.pdf`) va versionado en el repo.
+
 ## Pendiente / posibles mejoras
 
 - `assets/img/blender_render.jpg` = render 3D limpio de la escena (origen:
